@@ -775,7 +775,7 @@ func formatTemplateCandidates(matches []template.Template) string {
 	limit := min(len(matches), previewLimit)
 
 	parts := make([]string, 0, limit+1)
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		parts = append(parts, fmt.Sprintf("%s (%s)", matches[i].Name, matches[i].ID))
 	}
 
