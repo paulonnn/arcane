@@ -349,7 +349,6 @@
 	"dashboard_greeting_evening": "Good evening",
 	"dashboard_greeting_with_name": "{greeting}, {name}",
 	"dashboard_greeting_without_name": "{greeting}",
-	"dashboard_hero_summary": "Running {running}/{total} containers across {images} images.",
 	"dashboard_action_items_title": "Action Items",
 	"dashboard_overview_caption": "Live resource telemetry and Docker runtime snapshot.",
 	"dashboard_resource_tables_title": "Containers and Images",
