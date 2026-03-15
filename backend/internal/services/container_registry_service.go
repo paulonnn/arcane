@@ -714,8 +714,8 @@ func (s *ContainerRegistryService) checkRegistryNeedsUpdateInternal(item contain
 	}
 
 	needsUpdate = utils.UpdateIfChanged(&existing.RegistryType, item.RegistryType) || needsUpdate
-	needsUpdate = utils.UpdateIfChanged(&existing.AWSAccessKeyID, item.AWSAccessKeyID) || needsUpdate
-	needsUpdate = utils.UpdateIfChanged(&existing.AWSRegion, item.AWSRegion) || needsUpdate
+	credChanged := utils.UpdateIfChanged(&existing.AWSAccessKeyID, item.AWSAccessKeyID)
+	credChanged = utils.UpdateIfChanged(&existing.AWSRegion, item.AWSRegion) || credChanged
 
 	// Encrypt and update AWS secret if provided
 	if item.AWSSecretAccessKey != "" {
@@ -723,9 +723,16 @@ func (s *ContainerRegistryService) checkRegistryNeedsUpdateInternal(item contain
 		if err != nil {
 			slog.Warn("failed to encrypt AWS secret during sync, skipping field", "registry", existing.ID, "error", err)
 		} else {
-			needsUpdate = utils.UpdateIfChanged(&existing.AWSSecretAccessKey, encryptedSecret) || needsUpdate
+			credChanged = utils.UpdateIfChanged(&existing.AWSSecretAccessKey, encryptedSecret) || credChanged
 		}
 	}
+
+	// Invalidate cached ECR token when credentials change
+	if credChanged {
+		existing.ECRToken = ""
+		existing.ECRTokenGeneratedAt = nil
+	}
+	needsUpdate = credChanged || needsUpdate
 
 	return needsUpdate
 }
