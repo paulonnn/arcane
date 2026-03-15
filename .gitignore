@@ -17,9 +17,6 @@ arcane
 .DS_Store
 Thumbs.db
 
-# Archives
-*.tar.gz
-
 # Env
 .env
 .env.*
