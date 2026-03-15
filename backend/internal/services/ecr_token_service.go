@@ -40,7 +40,10 @@ func (s *ContainerRegistryService) GetOrRefreshECRToken(ctx context.Context, reg
 
 	// Slow path: deduplicate concurrent refreshes for the same registry.
 	result, sErr, _ := s.ecrRefreshGroup.Do(reg.ID, func() (any, error) {
-		return s.refreshECRTokenInternal(ctx, reg)
+		// Detach from the request context so a cancelled caller doesn't
+		// abort the shared refresh for all waiting goroutines.
+		refreshCtx := context.WithoutCancel(ctx)
+		return s.refreshECRTokenInternal(refreshCtx, reg)
 	})
 	if sErr != nil {
 		return "", "", sErr
