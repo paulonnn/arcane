@@ -4,7 +4,12 @@
 	import FormInput from '$lib/components/form/form-input.svelte';
 	import SwitchWithLabel from '$lib/components/form/labeled-switch.svelte';
 	import SelectWithLabel from '$lib/components/form/select-with-label.svelte';
-	import type { ContainerRegistry, ContainerRegistryCreateDto, ContainerRegistryUpdateDto, RegistryType } from '$lib/types/container-registry.type';
+	import type {
+		ContainerRegistry,
+		ContainerRegistryCreateDto,
+		ContainerRegistryUpdateDto,
+		RegistryType
+	} from '$lib/types/container-registry.type';
 	import { z } from 'zod/v4';
 	import { createForm, preventDefault } from '$lib/utils/form.utils';
 	import { m } from '$lib/paraglide/messages';
@@ -135,11 +140,7 @@
 					bind:input={$inputs.token}
 				/>
 			{:else}
-				<FormInput
-					label={m.registries_aws_access_key_id()}
-					type="text"
-					bind:input={$inputs.awsAccessKeyId}
-				/>
+				<FormInput label={m.registries_aws_access_key_id()} type="text" bind:input={$inputs.awsAccessKeyId} />
 				<FormInput
 					label={m.registries_aws_secret_access_key()}
 					type="password"
