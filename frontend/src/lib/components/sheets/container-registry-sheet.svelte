@@ -47,6 +47,13 @@
 						path: ['awsAccessKeyId']
 					});
 				}
+				if (!data.awsSecretAccessKey?.trim()) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: m.registries_aws_secret_access_key_required(),
+						path: ['awsSecretAccessKey']
+					});
+				}
 				if (!data.awsRegion?.trim()) {
 					ctx.addIssue({
 						code: z.ZodIssueCode.custom,

@@ -131,6 +131,9 @@ func (s *ContainerRegistryService) CreateRegistry(ctx context.Context, req model
 		if strings.TrimSpace(req.AWSRegion) == "" {
 			return nil, &models.ValidationError{Field: "awsRegion", Message: "AWS Region is required for ECR registries"}
 		}
+		if strings.TrimSpace(req.AWSSecretAccessKey) == "" {
+			return nil, &models.ValidationError{Field: "awsSecretAccessKey", Message: "AWS Secret Access Key is required for ECR registries"}
+		}
 		encryptedSecret, err := crypto.Encrypt(req.AWSSecretAccessKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt AWS secret access key: %w", err)
@@ -166,15 +169,23 @@ func (s *ContainerRegistryService) UpdateRegistry(ctx context.Context, id string
 	utils.UpdateIfChanged(&registry.Insecure, req.Insecure)
 	utils.UpdateIfChanged(&registry.Enabled, req.Enabled)
 
-	if req.RegistryType != nil && *req.RegistryType != "" {
+	// Detect type switch and clear stale credentials from the old type
+	if req.RegistryType != nil && *req.RegistryType != "" && *req.RegistryType != registry.RegistryType {
+		if *req.RegistryType == "ecr" {
+			registry.Username = ""
+			registry.Token = ""
+		} else {
+			registry.AWSAccessKeyID = ""
+			registry.AWSSecretAccessKey = ""
+			registry.AWSRegion = ""
+			registry.ECRToken = ""
+			registry.ECRTokenGeneratedAt = nil
+		}
 		utils.UpdateIfChanged(&registry.RegistryType, req.RegistryType)
 	}
 
 	// If switching to or updating ECR fields
 	newType := registry.RegistryType
-	if req.RegistryType != nil && *req.RegistryType != "" {
-		newType = *req.RegistryType
-	}
 
 	if newType == "ecr" {
 		utils.UpdateIfChanged(&registry.AWSAccessKeyID, req.AWSAccessKeyID)
@@ -185,6 +196,16 @@ func (s *ContainerRegistryService) UpdateRegistry(ctx context.Context, id string
 				return nil, fmt.Errorf("failed to encrypt AWS secret access key: %w", encErr)
 			}
 			utils.UpdateIfChanged(&registry.AWSSecretAccessKey, &encryptedSecret)
+		}
+		// Validate required ECR fields after applying updates
+		if strings.TrimSpace(registry.AWSAccessKeyID) == "" {
+			return nil, &models.ValidationError{Field: "awsAccessKeyId", Message: "AWS Access Key ID is required for ECR registries"}
+		}
+		if strings.TrimSpace(registry.AWSRegion) == "" {
+			return nil, &models.ValidationError{Field: "awsRegion", Message: "AWS Region is required for ECR registries"}
+		}
+		if strings.TrimSpace(registry.AWSSecretAccessKey) == "" {
+			return nil, &models.ValidationError{Field: "awsSecretAccessKey", Message: "AWS Secret Access Key is required for ECR registries"}
 		}
 		// Reset ECR token cache when credentials change so next auth call fetches a fresh token
 		if req.AWSAccessKeyID != nil || req.AWSSecretAccessKey != nil || req.AWSRegion != nil {
@@ -662,7 +683,9 @@ func (s *ContainerRegistryService) checkRegistryNeedsUpdateInternal(item contain
 	// Always update token as it comes decrypted from manager
 	if item.Token != "" {
 		encryptedToken, err := crypto.Encrypt(item.Token)
-		if err == nil {
+		if err != nil {
+			slog.Warn("failed to encrypt token during sync, skipping field", "registry", existing.ID, "error", err)
+		} else {
 			needsUpdate = utils.UpdateIfChanged(&existing.Token, encryptedToken) || needsUpdate
 		}
 	}
@@ -670,6 +693,26 @@ func (s *ContainerRegistryService) checkRegistryNeedsUpdateInternal(item contain
 	needsUpdate = utils.UpdateIfChanged(&existing.Description, item.Description) || needsUpdate
 	needsUpdate = utils.UpdateIfChanged(&existing.Insecure, item.Insecure) || needsUpdate
 	needsUpdate = utils.UpdateIfChanged(&existing.Enabled, item.Enabled) || needsUpdate
+
+	// Clear stale credentials when registry type changes during sync
+	newType := strings.TrimSpace(item.RegistryType)
+	if newType == "" {
+		newType = "generic"
+	}
+	if newType != existing.RegistryType {
+		if newType == "ecr" {
+			existing.Username = ""
+			existing.Token = ""
+		} else {
+			existing.AWSAccessKeyID = ""
+			existing.AWSSecretAccessKey = ""
+			existing.AWSRegion = ""
+			existing.ECRToken = ""
+			existing.ECRTokenGeneratedAt = nil
+		}
+		needsUpdate = true
+	}
+
 	needsUpdate = utils.UpdateIfChanged(&existing.RegistryType, item.RegistryType) || needsUpdate
 	needsUpdate = utils.UpdateIfChanged(&existing.AWSAccessKeyID, item.AWSAccessKeyID) || needsUpdate
 	needsUpdate = utils.UpdateIfChanged(&existing.AWSRegion, item.AWSRegion) || needsUpdate
@@ -677,7 +720,9 @@ func (s *ContainerRegistryService) checkRegistryNeedsUpdateInternal(item contain
 	// Encrypt and update AWS secret if provided
 	if item.AWSSecretAccessKey != "" {
 		encryptedSecret, err := crypto.Encrypt(item.AWSSecretAccessKey)
-		if err == nil {
+		if err != nil {
+			slog.Warn("failed to encrypt AWS secret during sync, skipping field", "registry", existing.ID, "error", err)
+		} else {
 			needsUpdate = utils.UpdateIfChanged(&existing.AWSSecretAccessKey, encryptedSecret) || needsUpdate
 		}
 	}
