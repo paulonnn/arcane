@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/getarcaneapp/arcane/backend/internal/database"
 	"github.com/getarcaneapp/arcane/backend/internal/models"
@@ -50,10 +52,11 @@ type resolvedRegistryCredential struct {
 }
 
 type ContainerRegistryService struct {
-	db           *database.DB
-	dockerClient registryDaemonGetter
-	cache        map[string]*cache.Cache[string] // imageRef -> digest cache
-	cacheMu      sync.RWMutex
+	db              *database.DB
+	dockerClient    registryDaemonGetter
+	cache           map[string]*cache.Cache[string] // imageRef -> digest cache
+	cacheMu         sync.RWMutex
+	ecrRefreshGroup singleflight.Group
 }
 
 func NewContainerRegistryService(db *database.DB, dockerClient registryDaemonGetter) *ContainerRegistryService {
@@ -338,7 +341,8 @@ func (s *ContainerRegistryService) GetAllRegistryAuthConfigs(ctx context.Context
 			}
 			decryptedToken, decryptErr := crypto.Decrypt(reg.Token)
 			if decryptErr != nil {
-				return nil, fmt.Errorf("failed to decrypt token for registry %s: %w", reg.URL, decryptErr)
+				slog.WarnContext(ctx, "failed to decrypt token for registry, skipping", "registry", reg.URL, "error", decryptErr)
+				continue
 			}
 			token = strings.TrimSpace(decryptedToken)
 			if token == "" {
