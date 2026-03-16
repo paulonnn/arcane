@@ -60,6 +60,7 @@ type ContainerRegistryService struct {
 	cache           map[string]*cache.Cache[string] // imageRef -> digest cache
 	cacheMu         sync.RWMutex
 	ecrRefreshGroup singleflight.Group
+	distributionHTTPClient *http.Client
 }
 
 func NewContainerRegistryService(db *database.DB, dockerClient registryDaemonGetter) *ContainerRegistryService {
