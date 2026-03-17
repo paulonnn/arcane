@@ -5,9 +5,17 @@
 	import settingsStore from '$lib/stores/config-store';
 	import { toPortHref } from '$lib/utils/url';
 
-	let { ports = [] as ContainerPorts[] } = $props<{
+	let {
+		ports = [] as ContainerPorts[],
+		collapsible = true,
+		maxVisible = 2
+	} = $props<{
 		ports?: ContainerPorts[];
+		collapsible?: boolean;
+		maxVisible?: number;
 	}>();
+
+	let expanded = $state(false);
 
 	const baseServerUrl = $derived($settingsStore?.baseServerUrl ?? 'http://localhost');
 
@@ -63,8 +71,14 @@
 	}
 
 	const allPorts = $derived(uniquePorts(ports));
-	const published = $derived(allPorts.filter((p) => p.isPublished));
-	const exposedOnly = $derived(allPorts.filter((p) => !p.isPublished));
+	const visiblePorts = $derived(
+		collapsible && !expanded && allPorts.length > maxVisible
+			? allPorts.slice(0, maxVisible)
+			: allPorts
+	);
+	const published = $derived(visiblePorts.filter((p) => p.isPublished));
+	const exposedOnly = $derived(visiblePorts.filter((p) => !p.isPublished));
+	const hiddenCount = $derived(allPorts.length - visiblePorts.length);
 </script>
 
 {#if allPorts.length === 0}
@@ -112,5 +126,13 @@
 				</ArcaneTooltip.Content>
 			</ArcaneTooltip.Root>
 		{/each}
+		{#if collapsible && allPorts.length > maxVisible}
+			<button
+				onclick={() => (expanded = !expanded)}
+				class="bg-muted hover:bg-muted/80 text-muted-foreground inline-flex items-center rounded-lg border px-2 py-1 text-[11px] font-medium shadow-sm transition-colors cursor-pointer"
+			>
+				{expanded ? '−' : `+${hiddenCount}`}
+			</button>
+		{/if}
 	</div>
 {/if}
